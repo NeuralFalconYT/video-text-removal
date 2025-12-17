@@ -46,23 +46,56 @@ def draw_polygons(image, ocr_items, display_text=False):
 
     # PIL → OpenCV
     return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+# import cv2
+# import numpy as np
+
+# def run_ocr(image):
+#   results, elapse = ocr(image)
+#   ocr_items = []
+#   def is_chinese(text):
+#       return any('\u4e00' <= c <= '\u9fff' for c in text)
+#   for poly, text, score in results:
+#       ocr_items.append({
+#           "polygon": poly,
+#           "text": text,
+#           "confidence": float(score)
+#       })
+#   for item in ocr_items:
+#       item["lang"] = "ch" if is_chinese(item["text"]) else "en"
+#   return ocr_items
+
 import cv2
 import numpy as np
 
 def run_ocr(image):
-  results, elapse = ocr(image)
-  ocr_items = []
-  def is_chinese(text):
-      return any('\u4e00' <= c <= '\u9fff' for c in text)
-  for poly, text, score in results:
-      ocr_items.append({
-          "polygon": poly,
-          "text": text,
-          "confidence": float(score)
-      })
-  for item in ocr_items:
-      item["lang"] = "ch" if is_chinese(item["text"]) else "en"
-  return ocr_items
+    ocr_items = []
+
+    try:
+        results, elapse = ocr(image)
+        if results is None:
+            return []
+
+        def is_chinese(text):
+            return any('\u4e00' <= c <= '\u9fff' for c in text)
+
+        for item in results:
+            # extra safety
+            if len(item) != 3:
+                continue
+
+            poly, text, score = item
+            ocr_items.append({
+                "polygon": poly,
+                "text": text,
+                "confidence": float(score),
+                "lang": "ch" if is_chinese(text) else "en"
+            })
+
+    except Exception as e:
+        print(f"[OCR ERROR] {e}")
+        return []
+
+    return ocr_items
 
 
 
