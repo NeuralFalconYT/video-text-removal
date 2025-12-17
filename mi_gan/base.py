@@ -1,10 +1,10 @@
-from utils import (switch_mps_device,
+from mi_gan.utils import (switch_mps_device,
                    pad_img_to_modulo,
                    boxes_from_mask,
                    resize_max_size)
 from typing import Optional
 import abc
-from schema import InpaintRequest, HDStrategy
+from mi_gan.schema import InpaintRequest, HDStrategy
 import numpy as np
 import cv2
 import torch 
