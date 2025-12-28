@@ -8,7 +8,7 @@ CLS = "./ocr/models/ch_ppocr_mobile_v2.0_cls_infer.onnx"
 REC_CN = "./ocr/models/ch_PP-OCRv5_rec_mobile_infer.onnx"
 
 ocr = RapidOCR(
-    use_cuda=False,
+    use_cuda=True,
     det_model_path=DET,
     rec_model_path=REC_CN,   # Chinese model handles English too
     cls_model_path=CLS,
