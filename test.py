@@ -157,95 +157,174 @@ def extract_and_write_chunks(
 
 
 
-
 import os
 import subprocess
 
 
+def is_valid_video(video_path):
+    """
+    Check if FFmpeg can read the video file.
+    Returns True if valid, False if corrupted.
+    """
+    result = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", video_path, "-f", "null", "-"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    return result.returncode == 0
+
+
 def concat_videos_with_original_audio(
-    chunks_dir="/content/video-text-removal/chunks",
-    original_video="/content/input.mp4",
-    output_path="/content/output.mp4"
+    original_video,
+    chunks_dir="./chunks",
 ):
     # -----------------------------
-    # Step 1: Collect & sort chunks
+    # Normalize paths
     # -----------------------------
-    files = [
+    original_video = os.path.abspath(original_video)
+    chunks_dir = os.path.abspath(chunks_dir)
+
+    os.makedirs("./save_videos", exist_ok=True)
+
+    # -----------------------------
+    # Output path
+    # ./save_videos/{name}_no_text.{ext}
+    # -----------------------------
+    base = os.path.basename(original_video)
+    name, ext = os.path.splitext(base)
+    output_path = os.path.abspath(f"./save_videos/{name}_no_text{ext}")
+
+    # -----------------------------
+    # Collect & sort chunks
+    # -----------------------------
+    all_chunks = sorted(
         f for f in os.listdir(chunks_dir)
         if f.lower().endswith(".mp4")
-    ]
+    )
 
-    if not files:
-        raise RuntimeError("No video chunks found")
-
-    files.sort()
+    if not all_chunks:
+        print("❌ No video chunks found")
+        return
 
     # -----------------------------
-    # Step 2: Create concat list
+    # Validate chunks
+    # -----------------------------
+    valid_chunks = []
+    for chunk in all_chunks:
+        path = os.path.join(chunks_dir, chunk)
+        if is_valid_video(path):
+            valid_chunks.append(chunk)
+        else:
+            print(f"⚠ Skipping corrupted chunk: {chunk}")
+
+    if not valid_chunks:
+        print("❌ All chunks are corrupted")
+        return
+
+    # -----------------------------
+    # Create concat list
     # -----------------------------
     concat_list = os.path.join(chunks_dir, "concat_list.txt")
-    with open(concat_list, "w") as f:
-        for name in files:
-            full_path = os.path.join(chunks_dir, name)
-            f.write(f"file '{full_path}'\n")
+
+    with open(concat_list, "w", encoding="utf-8") as f:
+        for chunk in valid_chunks:
+            p = os.path.join(chunks_dir, chunk).replace("\\", "/")
+            f.write(f"file '{p}'\n")
 
     # -----------------------------
-    # Step 3: Concatenate video (NO audio)
+    # Concatenate video (no audio)
     # -----------------------------
     temp_video = os.path.join(chunks_dir, "video_no_audio.mp4")
 
-    cmd_concat = [
-        "ffmpeg",
-        "-y",
-        "-f", "concat",
-        "-safe", "0",
-        "-i", concat_list,
-        "-c", "copy",
-        temp_video
-    ]
+    concat_proc = subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concat_list,
+            "-c", "copy",
+            temp_video
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True
+    )
 
-    subprocess.run(cmd_concat, check=True)
-
-    # -----------------------------
-    # Step 4: Extract audio from original
-    # -----------------------------
-    temp_audio = os.path.join(chunks_dir, "audio.aac")
-
-    cmd_audio = [
-        "ffmpeg",
-        "-y",
-        "-i", original_video,
-        "-vn",
-        "-acodec", "copy",
-        temp_audio
-    ]
-
-    subprocess.run(cmd_audio, check=True)
+    if concat_proc.returncode != 0:
+        print("❌ FFmpeg concat failed:")
+        print(concat_proc.stderr)
+        return
 
     # -----------------------------
-    # Step 5: Mux video + audio
+    # Extract audio from original (WAV)
     # -----------------------------
-    cmd_mux = [
-        "ffmpeg",
-        "-y",
-        "-i", temp_video,
-        "-i", temp_audio,
-        "-c:v", "copy",
-        "-c:a", "copy",
-        "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-shortest",
-        output_path
-    ]
+    temp_audio = os.path.join(chunks_dir, "original_audio.wav")
 
-    subprocess.run(cmd_mux, check=True)
+    audio_proc = subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i", original_video,
+            "-vn",
+            "-acodec", "pcm_s16le",
+            "-ar", "44100",
+            "-ac", "2",
+            temp_audio
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    if audio_proc.returncode != 0:
+        print("❌ FFmpeg audio extraction failed:")
+        print(audio_proc.stderr)
+        return
+
+    # -----------------------------
+    # Mux video + audio (SILENT)
+    # -----------------------------
+    mux_proc = subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i", temp_video,
+            "-i", temp_audio,
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-shortest",
+            output_path
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    if mux_proc.returncode != 0:
+        print("❌ FFmpeg muxing failed:")
+        print(mux_proc.stderr)
+        return
+
+    # -----------------------------
+    # Cleanup
+    # -----------------------------
+    for f in [concat_list, temp_video, temp_audio]:
+        if os.path.exists(f):
+            os.remove(f)
 
     print(f"\n✔ FINAL VIDEO READY: {output_path}")
+    print(f"✔ Used {len(valid_chunks)} valid chunks")
 
 
+# -----------------------------
+# RUN
+# -----------------------------
 
-
-video_path="./video.mp4"
+video_path="./test.mp4"
 extract_and_write_chunks(
     video_path,
     output_dir="./chunks",
@@ -253,12 +332,7 @@ extract_and_write_chunks(
     debug=True
 )
 
-
-# -----------------------------
-# RUN
-# -----------------------------
 concat_videos_with_original_audio(
-    chunks_dir="./chunks",
     original_video=video_path,
-    output_path="./output.mp4"
+    chunks_dir="./chunks"
 )
