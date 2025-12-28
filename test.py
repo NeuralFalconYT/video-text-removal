@@ -1,6 +1,6 @@
 import os
 import sys
-path = "/content/video-text-removal"
+path = "."
 
 if path not in sys.path:
     sys.path.insert(0, path)
@@ -157,10 +157,108 @@ def extract_and_write_chunks(
 
 
 
-video_path="/content/input.mp4"
+
+import os
+import subprocess
+
+
+def concat_videos_with_original_audio(
+    chunks_dir="/content/video-text-removal/chunks",
+    original_video="/content/input.mp4",
+    output_path="/content/output.mp4"
+):
+    # -----------------------------
+    # Step 1: Collect & sort chunks
+    # -----------------------------
+    files = [
+        f for f in os.listdir(chunks_dir)
+        if f.lower().endswith(".mp4")
+    ]
+
+    if not files:
+        raise RuntimeError("No video chunks found")
+
+    files.sort()
+
+    # -----------------------------
+    # Step 2: Create concat list
+    # -----------------------------
+    concat_list = os.path.join(chunks_dir, "concat_list.txt")
+    with open(concat_list, "w") as f:
+        for name in files:
+            full_path = os.path.join(chunks_dir, name)
+            f.write(f"file '{full_path}'\n")
+
+    # -----------------------------
+    # Step 3: Concatenate video (NO audio)
+    # -----------------------------
+    temp_video = os.path.join(chunks_dir, "video_no_audio.mp4")
+
+    cmd_concat = [
+        "ffmpeg",
+        "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", concat_list,
+        "-c", "copy",
+        temp_video
+    ]
+
+    subprocess.run(cmd_concat, check=True)
+
+    # -----------------------------
+    # Step 4: Extract audio from original
+    # -----------------------------
+    temp_audio = os.path.join(chunks_dir, "audio.aac")
+
+    cmd_audio = [
+        "ffmpeg",
+        "-y",
+        "-i", original_video,
+        "-vn",
+        "-acodec", "copy",
+        temp_audio
+    ]
+
+    subprocess.run(cmd_audio, check=True)
+
+    # -----------------------------
+    # Step 5: Mux video + audio
+    # -----------------------------
+    cmd_mux = [
+        "ffmpeg",
+        "-y",
+        "-i", temp_video,
+        "-i", temp_audio,
+        "-c:v", "copy",
+        "-c:a", "copy",
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-shortest",
+        output_path
+    ]
+
+    subprocess.run(cmd_mux, check=True)
+
+    print(f"\n✔ FINAL VIDEO READY: {output_path}")
+
+
+
+
+video_path="./video.mp4"
 extract_and_write_chunks(
     video_path,
     output_dir="./chunks",
     chunk_size=100,
     debug=True
+)
+
+
+# -----------------------------
+# RUN
+# -----------------------------
+concat_videos_with_original_audio(
+    chunks_dir="./chunks",
+    original_video=video_path,
+    output_path="./output.mp4"
 )
