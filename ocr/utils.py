@@ -20,15 +20,32 @@ from PIL import Image, ImageDraw, ImageFont
 
 font_path = "./ocr/fonts/simfang.ttf"
 font = ImageFont.truetype(font_path, 28)
-def draw_polygons(image, ocr_items, display_text=False):
-    # OpenCV → PIL
+
+def expand_polygon(polygon, scale=1.0):
+    """
+    Expand polygon from its center by scale factor
+    """
+    poly = np.array(polygon, dtype=np.float32)
+
+    center = poly.mean(axis=0)
+    expanded = (poly - center) * scale + center
+
+    return expanded.astype(np.int32)
+
+def draw_polygons(image, ocr_items, display_text=False, expand_scale=1.0):
+    """
+    Draw OCR polygons with expansion (same as inpainting mask)
+    """
+
     pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(pil_img)
 
     for item in ocr_items:
         poly = np.array(item["polygon"], dtype=np.int32)
 
-        # draw polygon (outline)
+        if expand_scale != 1.0:
+            poly = expand_polygon(poly, expand_scale)
+
         draw.line(
             [tuple(p) for p in poly] + [tuple(poly[0])],
             width=2,
@@ -38,14 +55,15 @@ def draw_polygons(image, ocr_items, display_text=False):
         if display_text:
             x, y = poly[0]
             draw.text(
-                (x, max(y - 30, 0)),
+                (x, max(y - 20, 0)),
                 item["text"],
-                font=font,
                 fill=(255, 0, 0)
             )
 
-    # PIL → OpenCV
     return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
+
+
 # import cv2
 # import numpy as np
 
