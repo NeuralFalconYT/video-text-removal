@@ -7,7 +7,7 @@ import torch
 import numpy as np
 import gradio as gr
 from tqdm.auto import tqdm
-
+import time
 # --- 1. Setup Paths & Imports ---
 path = "."
 if path not in sys.path:
@@ -162,7 +162,64 @@ def concat_videos_with_original_audio(original_video, chunks_dir):
     else:
         shutil.copy(temp_video, output_path)
 
+    if os.path.exists("/content/gdrive/MyDrive"):
+        drive_folder="/content/gdrive/MyDrive/subtitle_inpaint"
+        try:
+            os.makedirs(drive_folder, exist_ok=True)
+            time.sleep(1)  # Ensure directory is ready
+            shutil.copy(output_path,drive_folder)
+            print(f"Copied output video to Google Drive: {drive_folder}")
+            gr.Warning(f"Copied output video to Google Drive: {drive_folder}",duration=5)
+        except Exception as e:
+            print(f"Could not copy to Google Drive: {e}")
+        
     return output_path
+
+def put_text_bottom_right(
+    frame,
+    text,
+    font=cv2.FONT_HERSHEY_SIMPLEX,
+    font_scale=0.7,
+    color=(255, 255, 255),
+    thickness=2,
+    margin=10,
+    shadow=True
+):
+    """
+    Draw text at the bottom-right corner of a frame.
+
+    frame : OpenCV image (H, W, C)
+    text  : string to draw
+    """
+
+    (text_w, text_h), baseline = cv2.getTextSize(
+        text, font, font_scale, thickness
+    )
+
+    x = frame.shape[1] - text_w - margin
+    y = frame.shape[0] - margin
+
+    # Optional shadow for readability
+    if shadow:
+        cv2.putText(
+            frame, text,
+            (x + 1, y + 1),
+            font, font_scale,
+            (0, 0, 0),
+            thickness + 2,
+            cv2.LINE_AA
+        )
+
+    cv2.putText(
+        frame, text,
+        (x, y),
+        font, font_scale,
+        color,
+        thickness,
+        cv2.LINE_AA
+    )
+
+    return frame
 
 def process_video_pipeline(video_path,hide_method="Inpaint",expand=1.1):
     """
@@ -190,8 +247,9 @@ def process_video_pipeline(video_path,hide_method="Inpaint",expand=1.1):
     pbar = tqdm(total=total_frames, desc="Processing")
 
     chunk_writer = None
-    
+    frame_id=1
     while True:
+        
         ret, frame = cap.read()
         if not ret:
             break
@@ -211,6 +269,9 @@ def process_video_pipeline(video_path,hide_method="Inpaint",expand=1.1):
         # --- Create Visualization for Gradio Stream ---
         # Note: We return RGB for Gradio display
         preview_frame = display_result(vis_img, mask, clean_img,scale=0.4)#, out_size=(640, 360))
+        display_text=f"Frame {frame_id}/{total_frames}"
+        frame_id+=1
+        preview_frame = put_text_bottom_right(preview_frame, display_text)
 
         # --- Write Result to Chunk ---
         if chunk_writer is None:
@@ -276,7 +337,7 @@ def subtitle_remove_ui():
                     )
             with gr.Column(scale=2):
                 # We use Image for the live stream because it's smoother for frame-by-frame updates
-                final_video_output = gr.Video(label="Final Output Video (Downloadable)")
+                final_video_output = gr.File(label="Download Processed Video")
                 with gr.Accordion("Live Processing View", open=False):
                     live_display = gr.Image(label="Live Processing View (OCR | Mask | Result)", interactive=False)
                 
