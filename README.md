@@ -4,6 +4,8 @@
 
 
 ## Credit:
-
+[RapidOCR](https://github.com/RapidAI/RapidOCR) For OCR <br>
+[MI-GAN](https://github.com/Picsart-AI-Research/MI-GAN) For Image Inpaint <br>
+[IOPaint](https://github.com/Sanster/IOPaint) to use MI-GAN via IOPaint <br>
 ## Disclaimer
 Don't use this model to do bad things. 
