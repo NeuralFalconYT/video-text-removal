@@ -21,16 +21,49 @@ from PIL import Image, ImageDraw, ImageFont
 font_path = "./ocr/fonts/simfang.ttf"
 font = ImageFont.truetype(font_path, 28)
 
-def expand_polygon(polygon, scale=1.0):
+
+def expand_polygon(polygon, expand=1.0):
     """
-    Expand polygon from its center by scale factor
+    Universal safe polygon expansion for subtitles.
+
+    expand = 1.0  -> no expansion
+    expand > 1.0  -> controlled safe expansion
     """
+
+    if expand <= 1.0:
+        return np.array(polygon, dtype=np.int32)
+
     poly = np.array(polygon, dtype=np.float32)
 
-    center = poly.mean(axis=0)
-    expanded = (poly - center) * scale + center
+    min_x, min_y = poly.min(axis=0)
+    max_x, max_y = poly.max(axis=0)
 
-    return expanded.astype(np.int32)
+    width = max_x - min_x
+    height = max_y - min_y
+
+    # ---- base ratios (tuned for subtitles) ----
+    base_pad_x_ratio = 0.08    # small horizontal
+    base_pad_y_ratio = 0.35    # stronger vertical
+
+    # ---- safety caps (pixels) ----
+    max_pad_x = 20
+    max_pad_y = 60
+
+    # ---- scale padding by expand factor ----
+    scale = expand - 1.0
+
+    pad_x = min(width * base_pad_x_ratio * scale, max_pad_x)
+    pad_y = min(height * base_pad_y_ratio * scale, max_pad_y)
+
+    expanded = np.array([
+        [min_x - pad_x, min_y - pad_y],
+        [max_x + pad_x, min_y - pad_y],
+        [max_x + pad_x, max_y + pad_y],
+        [min_x - pad_x, max_y + pad_y],
+    ], dtype=np.int32)
+
+    return expanded
+
 
 def draw_polygons(image, ocr_items, display_text=False, expand_scale=1.0):
     """
@@ -43,8 +76,8 @@ def draw_polygons(image, ocr_items, display_text=False, expand_scale=1.0):
     for item in ocr_items:
         poly = np.array(item["polygon"], dtype=np.int32)
 
-        if expand_scale != 1.0:
-            poly = expand_polygon(poly, expand_scale)
+        poly = expand_polygon(poly, expand_scale)
+
 
         draw.line(
             [tuple(p) for p in poly] + [tuple(poly[0])],
@@ -64,23 +97,7 @@ def draw_polygons(image, ocr_items, display_text=False, expand_scale=1.0):
 
 
 
-# import cv2
-# import numpy as np
 
-# def run_ocr(image):
-#   results, elapse = ocr(image)
-#   ocr_items = []
-#   def is_chinese(text):
-#       return any('\u4e00' <= c <= '\u9fff' for c in text)
-#   for poly, text, score in results:
-#       ocr_items.append({
-#           "polygon": poly,
-#           "text": text,
-#           "confidence": float(score)
-#       })
-#   for item in ocr_items:
-#       item["lang"] = "ch" if is_chinese(item["text"]) else "en"
-#   return ocr_items
 
 import cv2
 import numpy as np
@@ -147,13 +164,7 @@ def generate_text_mask(
 
         poly = np.array(item["polygon"], dtype=np.float32)
 
-        # optional polygon expansion
-        if expand_scale != 1.0:
-            center = poly.mean(axis=0)
-            poly = (poly - center) * expand_scale + center
-
-        poly = poly.astype(np.int32)
-
+        poly = expand_polygon(poly, expand_scale)
         cv2.fillPoly(mask, [poly], fg_val)
 
     return mask
@@ -201,12 +212,10 @@ def blur_text_regions(
 
         poly = np.array(item["polygon"], dtype=np.float32)
 
-        # Optional expansion
-        if expand_scale != 1.0:
-            center = poly.mean(axis=0)
-            poly = (poly - center) * expand_scale + center
+        poly = expand_polygon(poly, expand_scale)
 
-        poly = poly.astype(np.int32)
+
+        # poly = poly.astype(np.int32)
         cv2.fillPoly(mask, [poly], 255)
 
     # Blur full image ONCE (important for speed)
