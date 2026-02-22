@@ -11,7 +11,7 @@
 ### 📌 Description
 - **Original:** Raw video with visible text.  
 - **Blur:** Detected text regions blurred.  
-- **Inpaint:** Detected text regions are removed using AI inpainting.
+- **AI Inpainting:** Detected text regions are removed using AI inpainting.
 
 
 
