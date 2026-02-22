@@ -1,6 +1,24 @@
 ## Blur or Inpaint Subtitle From Video
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/NeuralFalconYT/video-text-removal/blob/main/Inpaint_Subtitle.ipynb) <br>
 
+## 🎬 Video Text Removal Results
+
+| Original Video | Inpaint Text | Blur Text |
+|---------------|-----------|-------------|
+| <video src="https://github.com/user-attachments/assets/d3d9f4f6-2024-405f-95e2-260f7862fa20" width="250" controls></video> | <video src="https://github.com/user-attachments/assets/f3a4dd47-d138-40f0-9238-b56b7da6d1a3" width="250" controls></video> | <video src="https://github.com/user-attachments/assets/46d9e523-413e-4399-92d7-092675112afa" width="250" controls></video> |
+
+### 📌 Description
+- **Original:** Raw video with visible text.  
+- **Blur:** Detected text regions blurred.  
+- **Inpaint:** Detected text regions are removed using AI inpainting.
+
+
+
+### 📌 Step-by-Step Explanation
+<img src="https://github.com/user-attachments/assets/59873ff0-ac73-46e1-b09b-9d13475f242f" 
+     width="400" />
+
+
 
 
 
